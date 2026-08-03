@@ -100,7 +100,7 @@ Samsung Odyssey G70B:
 
 | | |
 |---|---|
-| Resolution | 3840x2160 @ 60 Hz |
+| Resolution | 3840x2160 @ 60 Hz — confirmed by disabling every other output |
 | Alt mode | pin assignment C — four DP lanes |
 | HDR | reported **incapable** by the compositor |
 
@@ -110,6 +110,31 @@ output as HDR-incapable, and the mode list tops out at 60 Hz rather than 120.
 Whether that is the adapter, the link configuration or something else has not
 been investigated. A native USB-C→DP cable into a DP monitor would be the
 obvious next test.
+
+## One diagnostic trap worth naming
+
+If the same monitor is reachable on two inputs — a direct HDMI cable *and*
+the USB-C adapter into a second port — it is very easy to spend an evening
+looking at the wrong one and concluding that DP does not work. Compare the
+EDIDs before concluding anything:
+
+```
+for c in /sys/class/drm/card*-*; do
+    echo "$(basename $c): $(cat $c/edid 2>/dev/null | edid-decode 2>/dev/null | grep -i 'serial number' | head -1)"
+done
+```
+
+Identical serial numbers mean one physical display; switch its input source.
+The unambiguous test is to disable every other output and see whether the
+picture survives:
+
+```
+kscreen-doctor output.<OTHER>.disable
+```
+
+Note also that connector names are not stable — they renumber when the
+firmware's output order changes. Read them from `kscreen-doctor -o` each
+time rather than remembering them.
 
 ## A note on colour, since it surprises people
 
