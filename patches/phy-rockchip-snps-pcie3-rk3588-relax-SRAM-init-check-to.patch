@@ -1,5 +1,5 @@
 From 983024831cd8d8b134f9294c73ed56c491b736a2 Mon Sep 17 00:00:00 2001
-From: Igor-rk3588 <297247175+sky-rk3588@users.noreply.github.com>
+From: Igor Paunovic <royalnet026@gmail.com>
 Date: Fri, 24 Jul 2026 17:27:17 +0200
 Subject: [PATCH] phy: rockchip-snps-pcie3: rk3588: relax SRAM init check to
  BIT(0) (EDK2/mainline parity)

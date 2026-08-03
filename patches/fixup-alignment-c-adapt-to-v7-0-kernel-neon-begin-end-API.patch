@@ -1,5 +1,5 @@
 From a3107c4b86558a0816b362c6367976a4bce7d974 Mon Sep 17 00:00:00 2001
-From: Igor-rk3588 <297247175+sky-rk3588@users.noreply.github.com>
+From: Igor Paunovic <royalnet026@gmail.com>
 Date: Fri, 24 Jul 2026 18:07:04 +0200
 Subject: [PATCH] fixup: alignment.c: adapt to v7.0 kernel_neon_begin/end API
  (state arg)

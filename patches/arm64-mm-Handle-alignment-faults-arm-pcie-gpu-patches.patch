@@ -1,5 +1,5 @@
 From d4c3f2c9d22fd05eaa1ca27b2aeba5604693b8a2 Mon Sep 17 00:00:00 2001
-From: Igor-rk3588 <297247175+sky-rk3588@users.noreply.github.com>
+From: Mario Bălănică <mariobalanica02@gmail.com>
 Date: Fri, 24 Jul 2026 17:37:05 +0200
 Subject: [PATCH] arm64: mm: Handle alignment faults (arm-pcie-gpu-patches
  0001, mariobalanica)
