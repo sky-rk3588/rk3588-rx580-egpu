@@ -68,6 +68,12 @@ the card. See [docs/05-gaming.md](docs/05-gaming.md).
 - A second 4K display runs simultaneously off the SoC's own Mali/VOP2
 - HDMI audio over the card works
 
+**Bonus, same board, no card involved:** the Orange Pi 5 Plus also has a
+DisplayPort controller wired to its USB-C port that mainline never enables.
+A devicetree change turns it on and gives a *third* independent 4K display
+straight from the SoC — see
+[docs/06-usbc-displayport.md](docs/06-usbc-displayport.md).
+
 ## Quick start
 
 Read [docs/01-hardware.md](docs/01-hardware.md) **before** connecting

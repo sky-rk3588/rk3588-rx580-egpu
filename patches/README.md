@@ -12,6 +12,7 @@ convenience here, so it is spelled out per patch.
 | `drm-ttm-arm64-use-pgprot-dmacoherent-*` | Igor Paunović | based on yanghaku's fix, validated on RPi5/RK3588 |
 | `phy-rockchip-snps-pcie3-rk3588-relax-SRAM-init-*` | Igor Paunović | this project |
 | `drm-amd-display-extend-420-pixel-phase-lock-wait-*` | Igor Paunović | this project (cosmetic, see note) |
+| `arm64-dts-rockchip-opi5plus-enable-DisplayPort-over-USB-C` | Igor Paunović | this project — see [docs/06](../docs/06-usbc-displayport.md) |
 
 **The three arm64 PCIe/GPU patches are Mario Bălănică's work.** They were
 carried into this tree and tested here; nothing about them was invented

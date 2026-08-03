@@ -1,0 +1,184 @@
+From 743d83a6adffc156ad0e0ee967c33ff86f81182d Mon Sep 17 00:00:00 2001
+From: Igor Paunovic <royalnet026@gmail.com>
+Date: Mon, 3 Aug 2026 20:32:51 +0200
+Subject: [PATCH] arm64: dts: rockchip: opi5plus: enable DisplayPort Alt Mode
+ over USB-C
+
+The board routes DP to its data USB-C connector (schematic: RK3588 balls
+TYPEC0_SBU1/DP0_AUXP and TYPEC0_SBU2/DP0_AUXN carry live nets, and the
+second Type-C has no SBU nets at all), and the DTS already describes the
+orientation half: mode-switch, orientation-switch and the sbu*-dc-gpios.
+What was missing is the video half.
+
+phy-rockchip-usbdp only registers its DRM aux bridge when graph port 3
+exists, so the single bare port meant dw-dp never found a bridge and dp0
+never bound. The connector also had no altmodes node, so the typec class
+registered no DP alt mode and TCPM could not enter one.
+
+Enable dp0, route it from VP2 (VP0 and VP1 drive the two HDMI outputs;
+VP3 is limited to 2048x1536 and has no 10-bit output), convert the phy
+and xhci graphs to the four-port and two-port shapes the binding
+describes, and declare the DisplayPort alt mode on the connector.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ .../dts/rockchip/rk3588-orangepi-5-plus.dts   | 90 ++++++++++++++++---
+ 1 file changed, 79 insertions(+), 11 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3588-orangepi-5-plus.dts b/arch/arm64/boot/dts/rockchip/rk3588-orangepi-5-plus.dts
+index d358c81ac..e1b91a8ed 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3588-orangepi-5-plus.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3588-orangepi-5-plus.dts
+@@ -133,6 +133,22 @@ &combphy1_ps {
+ 	status = "okay";
+ };
+ 
++&dp0 {
++	status = "okay";
++};
++
++&dp0_in {
++	dp0_in_vp2: endpoint {
++		remote-endpoint = <&vp2_out_dp0>;
++	};
++};
++
++&dp0_out {
++	dp0_out_con: endpoint {
++		remote-endpoint = <&usbdp_phy0_dp_in>;
++	};
++};
++
+ &fan {
+ 	pwms = <&pwm3 0 50000 0>;
+ };
+@@ -225,6 +241,13 @@ usb_con: connector {
+ 			sink-pdos = <PDO_FIXED(5000, 10, PDO_FIXED_USB_COMM)>;
+ 			try-power-role = "source";
+ 
++			altmodes {
++				displayport {
++					svid = /bits/ 16 <0xff01>;
++					vdo = <0xffffffff>;
++				};
++			};
++
+ 			ports {
+ 				#address-cells = <1>;
+ 				#size-cells = <0>;
+@@ -233,7 +256,7 @@ port@0 {
+ 					reg = <0>;
+ 
+ 					usbc0_hs: endpoint {
+-						remote-endpoint = <&usb_host0_xhci_drd_sw>;
++						remote-endpoint = <&usb_host0_xhci_hs>;
+ 					};
+ 				};
+ 
+@@ -241,7 +264,7 @@ port@1 {
+ 					reg = <1>;
+ 
+ 					usbc0_ss: endpoint {
+-						remote-endpoint = <&usbdp_phy0_typec_ss>;
++						remote-endpoint = <&usbdp_phy0_ss_out>;
+ 					};
+ 				};
+ 
+@@ -249,7 +272,7 @@ port@2 {
+ 					reg = <2>;
+ 
+ 					usbc0_sbu: endpoint {
+-						remote-endpoint = <&usbdp_phy0_typec_sbu>;
++						remote-endpoint = <&usbdp_phy0_dp_out>;
+ 					};
+ 				};
+ 			};
+@@ -382,18 +405,40 @@ &usbdp_phy0 {
+ 	sbu1-dc-gpios = <&gpio4 RK_PA6 GPIO_ACTIVE_HIGH>;
+ 	sbu2-dc-gpios = <&gpio4 RK_PA7 GPIO_ACTIVE_HIGH>;
+ 
+-	port {
++	ports {
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+ 
+-		usbdp_phy0_typec_ss: endpoint@0 {
++		port@0 {
+ 			reg = <0>;
+-			remote-endpoint = <&usbc0_ss>;
++
++			usbdp_phy0_ss_out: endpoint {
++				remote-endpoint = <&usbc0_ss>;
++			};
+ 		};
+ 
+-		usbdp_phy0_typec_sbu: endpoint@1 {
++		port@1 {
+ 			reg = <1>;
+-			remote-endpoint = <&usbc0_sbu>;
++
++			usbdp_phy0_ss_in: endpoint {
++				remote-endpoint = <&usb_host0_xhci_ss>;
++			};
++		};
++
++		port@2 {
++			reg = <2>;
++
++			usbdp_phy0_dp_in: endpoint {
++				remote-endpoint = <&dp0_out_con>;
++			};
++		};
++
++		port@3 {
++			reg = <3>;
++
++			usbdp_phy0_dp_out: endpoint {
++				remote-endpoint = <&usbc0_sbu>;
++			};
+ 		};
+ 	};
+ };
+@@ -401,9 +446,24 @@ usbdp_phy0_typec_sbu: endpoint@1 {
+ &usb_host0_xhci {
+ 	usb-role-switch;
+ 
+-	port {
+-		usb_host0_xhci_drd_sw: endpoint {
+-			remote-endpoint = <&usbc0_hs>;
++	ports {
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		port@0 {
++			reg = <0>;
++
++			usb_host0_xhci_hs: endpoint {
++				remote-endpoint = <&usbc0_hs>;
++			};
++		};
++
++		port@1 {
++			reg = <1>;
++
++			usb_host0_xhci_ss: endpoint {
++				remote-endpoint = <&usbdp_phy0_ss_in>;
++			};
+ 		};
+ 	};
+ };
+@@ -435,3 +495,11 @@ vp1_out_hdmi1: endpoint@ROCKCHIP_VOP2_EP_HDMI1 {
+ 		remote-endpoint = <&hdmi1_in_vp1>;
+ 	};
+ };
++
++&vp2 {
++	/* unit address is hex: ROCKCHIP_VOP2_EP_DP0 == 10 == 0xa */
++	vp2_out_dp0: endpoint@a {
++		reg = <ROCKCHIP_VOP2_EP_DP0>;
++		remote-endpoint = <&dp0_in_vp2>;
++	};
++};
+-- 
+2.53.0
+
