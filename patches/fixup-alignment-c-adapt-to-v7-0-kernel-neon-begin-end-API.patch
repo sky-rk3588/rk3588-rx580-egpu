@@ -1,0 +1,32 @@
+From a3107c4b86558a0816b362c6367976a4bce7d974 Mon Sep 17 00:00:00 2001
+From: Igor-rk3588 <297247175+sky-rk3588@users.noreply.github.com>
+Date: Fri, 24 Jul 2026 18:07:04 +0200
+Subject: [PATCH] fixup: alignment.c: adapt to v7.0 kernel_neon_begin/end API
+ (state arg)
+
+---
+ arch/arm64/kernel/alignment.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/kernel/alignment.c b/arch/arm64/kernel/alignment.c
+index 0b737102b..ce4761204 100644
+--- a/arch/arm64/kernel/alignment.c
++++ b/arch/arm64/kernel/alignment.c
+@@ -153,11 +153,12 @@ static __always_inline void set_vn_dt(int n, int t, u64 val)
+ static __always_inline int kernel_neon_wrapper(int (*fn)(u32 insn, struct pt_regs *regs),
+ 					       u32 insn, struct pt_regs *regs)
+ {
++	struct user_fpsimd_state fpsimd_state;
+ 	int ret;
+ 
+-	kernel_neon_begin();
++	kernel_neon_begin(&fpsimd_state);
+ 	ret = fn(insn, regs);
+-	kernel_neon_end();
++	kernel_neon_end(&fpsimd_state);
+ 
+ 	return ret;
+ }
+-- 
+2.53.0
+

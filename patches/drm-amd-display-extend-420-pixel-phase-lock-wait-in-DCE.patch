@@ -1,0 +1,49 @@
+From 10f0078e5b847f25452b0646215e4635c913d4ee Mon Sep 17 00:00:00 2001
+From: Igor Paunovic <royalnet026@gmail.com>
+Date: Sun, 26 Jul 2026 16:09:00 +0200
+Subject: [PATCH] drm/amd/display: extend 420 pixel-phase lock wait in DCE
+ formatter reset
+
+On an RK3588 (arm64) host driving a Polaris card over PCIe Gen3 x4,
+the FMT_420_PIXEL_PHASE_LOCKED poll routinely exceeds its 100us budget
+when the DIG resync FIFO is reprogrammed for YCbCr 4:2:0 output
+(4K60 HDR over HDMI 2.0). The timeout leaves the FIFO unaligned,
+shifting pixel phase and producing a green-tinted image; during early
+boot modesets the same failure can wedge the whole display init.
+
+Extend the wait to a 100ms worst-case budget. REG_WAIT returns as soon
+as the phase locks, so the common (fast-lock) case is unaffected.
+
+Observed and diagnosed on Orange Pi 5 Plus + XFX RX 580 8GB eGPU:
+every HDR toggle logged exactly one
+'REG_WAIT timeout 10us * 10 tries - program_formatter_reset_dig_resync_fifo'
+and DisplayPort HDR output (which bypasses this path) shows correct
+colors on the same setup.
+
+Signed-off-by: Igor Paunovic <royalnet026@gmail.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_opp.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_opp.c b/drivers/gpu/drm/amd/display/dc/dce/dce_opp.c
+index f342da5a5..0b424a4cc 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_opp.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_opp.c
+@@ -642,8 +642,12 @@ static void program_formatter_reset_dig_resync_fifo(struct output_pixel_processo
+ 	REG_UPDATE(FMT_CONTROL,
+ 			FMT_420_PIXEL_PHASE_LOCKED_CLEAR, 1);
+ 
+-	/* poll until FMT_420_PIXEL_PHASE_LOCKED become 1*/
+-	REG_WAIT(FMT_CONTROL, FMT_420_PIXEL_PHASE_LOCKED, 1, 10, 10);
++	/* poll until FMT_420_PIXEL_PHASE_LOCKED become 1
++	 * RK3588 eGPU: the 420 pixel-phase takes longer to lock than the
++	 * stock 100us budget; a short timeout leaves the FIFO unaligned and
++	 * produces a green-tinted image on YCbCr 4:2:0 output (e.g. 4K60 HDR
++	 * over HDMI 2.0). Give it real headroom - it returns early on lock. */
++	REG_WAIT(FMT_CONTROL, FMT_420_PIXEL_PHASE_LOCKED, 1, 50, 2000);
+ 
+ }
+ 
+-- 
+2.53.0
+

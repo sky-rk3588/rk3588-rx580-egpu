@@ -1,0 +1,71 @@
+From 5a7a15861563895cc396d39d19168e35edc9f5ce Mon Sep 17 00:00:00 2001
+From: Igor-rk3588 <297247175+sky-rk3588@users.noreply.github.com>
+Date: Fri, 24 Jul 2026 17:37:06 +0200
+Subject: [PATCH] drm: Force writecombined mappings for DMA
+ (arm-pcie-gpu-patches 0003, mariobalanica)
+
+---
+ drivers/gpu/drm/Kconfig      | 16 ++++++++++++++++
+ drivers/gpu/drm/ttm/ttm_tt.c |  4 ++++
+ include/drm/drm_cache.h      |  3 +++
+ 3 files changed, 23 insertions(+)
+
+diff --git a/drivers/gpu/drm/Kconfig b/drivers/gpu/drm/Kconfig
+index d3d52310c..a92bf5c1f 100644
+--- a/drivers/gpu/drm/Kconfig
++++ b/drivers/gpu/drm/Kconfig
+@@ -183,6 +183,22 @@ config DRM_LOAD_EDID_FIRMWARE
+ 	  default case is N. Details and instructions how to build your own
+ 	  EDID data are given in Documentation/admin-guide/edid.rst.
+ 
++config DRM_FORCE_DMA_WRITE_COMBINED_MAPPINGS
++	bool "Force write-combined mappings for DMA"
++	default y
++	help
++	  PCIe GPU device drivers may use normal cached mappings for DMA memory.
++
++	  This requires the PCIe interface to be coherent with the CPU caches,
++	  which is not supported by many Arm platforms (e.g. RK35xx), leading to
++	  data corruption on inbound transactions.
++
++	  Enable this option to force write-combined mappings instead (Normal
++	  non-cacheable on Arm).
++
++	  Disable if the hardware supports coherency, as it might cause issues on
++	  certain platforms that ignore the PCIe NoSnoop TLP attribute.
++
+ source "drivers/gpu/drm/display/Kconfig"
+ 
+ config DRM_TTM
+diff --git a/drivers/gpu/drm/ttm/ttm_tt.c b/drivers/gpu/drm/ttm/ttm_tt.c
+index b645a1818..73b7fb6ad 100644
+--- a/drivers/gpu/drm/ttm/ttm_tt.c
++++ b/drivers/gpu/drm/ttm/ttm_tt.c
+@@ -156,6 +156,10 @@ static void ttm_tt_init_fields(struct ttm_tt *ttm,
+ 			       enum ttm_caching caching,
+ 			       unsigned long extra_pages)
+ {
++#ifdef CONFIG_DRM_FORCE_DMA_WRITE_COMBINED_MAPPINGS
++	if (caching == ttm_cached)
++		caching = ttm_write_combined;
++#endif
+ 	ttm->num_pages = (PAGE_ALIGN(bo->base.size) >> PAGE_SHIFT) + extra_pages;
+ 	ttm->page_flags = page_flags;
+ 	ttm->dma_address = NULL;
+diff --git a/include/drm/drm_cache.h b/include/drm/drm_cache.h
+index 08e0e3ffa..ce86c5536 100644
+--- a/include/drm/drm_cache.h
++++ b/include/drm/drm_cache.h
+@@ -45,6 +45,9 @@ bool drm_need_swiotlb(int dma_bits);
+ 
+ static inline bool drm_arch_can_wc_memory(void)
+ {
++#ifdef CONFIG_DRM_FORCE_DMA_WRITE_COMBINED_MAPPINGS
++	return true;
++#endif
+ #if defined(CONFIG_PPC) && !defined(CONFIG_NOT_COHERENT_CACHE)
+ 	return false;
+ #elif defined(CONFIG_MIPS) && defined(CONFIG_CPU_LOONGSON64)
+-- 
+2.53.0
+

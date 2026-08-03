@@ -1,0 +1,74 @@
+From 2ab9a197500a87e409ccf27d3ffdc9c5fd560f8a Mon Sep 17 00:00:00 2001
+From: Igor-rk3588 <297247175+sky-rk3588@users.noreply.github.com>
+Date: Fri, 24 Jul 2026 17:27:17 +0200
+Subject: [PATCH] drm/ttm: arm64: use pgprot_dmacoherent for cached mappings
+ (non-snooping PCIe)
+
+RK3588 PCIe does no cache snooping; CPU-cached TTM mappings read stale
+data (amdgpu ring/fence never observed -> ring gfx test failed -110).
+Map ttm_cached as Normal-NC on arm64 and always take the vmap path in
+ttm_bo_kmap_ttm. Based on yanghaku's fix validated on RPi5/RK3588.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ drivers/gpu/drm/ttm/ttm_bo_util.c | 7 ++++++-
+ drivers/gpu/drm/ttm/ttm_module.c  | 8 +++++++-
+ 2 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/ttm/ttm_bo_util.c b/drivers/gpu/drm/ttm/ttm_bo_util.c
+index f83b7d5ec..27747762e 100644
+--- a/drivers/gpu/drm/ttm/ttm_bo_util.c
++++ b/drivers/gpu/drm/ttm/ttm_bo_util.c
+@@ -345,8 +345,10 @@ static int ttm_bo_kmap_ttm(struct ttm_buffer_object *bo,
+ 	struct ttm_resource *mem = bo->resource;
+ 	struct ttm_operation_ctx ctx = { };
+ 	struct ttm_tt *ttm = bo->ttm;
++#if !defined(CONFIG_ARM64)
+ 	struct ttm_resource_manager *man =
+ 			ttm_manager_type(bo->bdev, mem->mem_type);
++#endif
+ 	pgprot_t prot;
+ 	int ret;
+ 
+@@ -356,6 +358,7 @@ static int ttm_bo_kmap_ttm(struct ttm_buffer_object *bo,
+ 	if (ret)
+ 		return ret;
+ 
++#if !defined(CONFIG_ARM64)
+ 	if (num_pages == 1 && ttm->caching == ttm_cached &&
+ 	    !(man->use_tt && (ttm->page_flags & TTM_TT_FLAG_DECRYPTED))) {
+ 		/*
+@@ -366,7 +369,9 @@ static int ttm_bo_kmap_ttm(struct ttm_buffer_object *bo,
+ 		map->bo_kmap_type = ttm_bo_map_kmap;
+ 		map->page = ttm->pages[start_page];
+ 		map->virtual = kmap(map->page);
+-	} else {
++	} else
++#endif
++	{
+ 		/*
+ 		 * We need to use vmap to get the desired page protection
+ 		 * or to make the buffer object look contiguous.
+diff --git a/drivers/gpu/drm/ttm/ttm_module.c b/drivers/gpu/drm/ttm/ttm_module.c
+index aa137ead5..2d5ed53d8 100644
+--- a/drivers/gpu/drm/ttm/ttm_module.c
++++ b/drivers/gpu/drm/ttm/ttm_module.c
+@@ -62,8 +62,14 @@
+ pgprot_t ttm_prot_from_caching(enum ttm_caching caching, pgprot_t tmp)
+ {
+ 	/* Cached mappings need no adjustment */
+-	if (caching == ttm_cached)
++	if (caching == ttm_cached) {
++#if !defined(CONFIG_ARM64)
+ 		return tmp;
++#else
++		/* PCIe bez cache snoop-a (RK3588/BCM2712): CPU mora videti GPU DMA upise */
++		return pgprot_dmacoherent(tmp);
++#endif
++	}
+ 
+ #if defined(__i386__) || defined(__x86_64__)
+ 	if (caching == ttm_write_combined)
+-- 
+2.53.0
+

@@ -1,0 +1,103 @@
+From 10c99ba2f17bc75c48a93d81ce6a4a9c9ab226ed Mon Sep 17 00:00:00 2001
+From: Igor-rk3588 <297247175+sky-rk3588@users.noreply.github.com>
+Date: Fri, 24 Jul 2026 17:37:06 +0200
+Subject: [PATCH] arm64: mm: Force Device mappings for PCIe MMIO
+ (arm-pcie-gpu-patches 0002, mariobalanica)
+
+---
+ arch/arm64/include/asm/pgtable.h | 20 ++++++++++++++-----
+ kernel/resource.c                | 33 ++++++++++++++++++++++++++++++++
+ 2 files changed, 48 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm64/include/asm/pgtable.h b/arch/arm64/include/asm/pgtable.h
+index b3e58735c..46c8c740e 100644
+--- a/arch/arm64/include/asm/pgtable.h
++++ b/arch/arm64/include/asm/pgtable.h
+@@ -307,11 +307,6 @@ static inline pte_t pte_mkyoung(pte_t pte)
+ 	return set_pte_bit(pte, __pgprot(PTE_AF));
+ }
+ 
+-static inline pte_t pte_mkspecial(pte_t pte)
+-{
+-	return set_pte_bit(pte, __pgprot(PTE_SPECIAL));
+-}
+-
+ static inline pte_t pte_mkcont(pte_t pte)
+ {
+ 	return set_pte_bit(pte, __pgprot(PTE_CONT));
+@@ -770,6 +765,21 @@ static inline void __set_puds(struct mm_struct *mm, unsigned long addr,
+ 	__pgprot_modify(prot, PTE_ATTRINDX_MASK, \
+ 			PTE_ATTRINDX(MT_NORMAL_NC) | PTE_PXN | PTE_UXN)
+ 
++extern bool range_is_pci(phys_addr_t phys_addr, size_t size);
++
++static inline pte_t pte_mkspecial(pte_t pte)
++{
++#ifdef CONFIG_ARM64_FORCE_PCIE_MMIO_DEVICE_MAPPINGS
++	phys_addr_t phys = __pte_to_phys(pte);
++	pgprot_t prot = __pgprot(pte_val(pte) & ~__phys_to_pte_val(__pte_to_phys(__pte(~0ull))));
++
++	if ((pgprot_val(prot) != pgprot_val(pgprot_device(prot))) &&
++	    range_is_pci(phys, PAGE_SIZE))
++		pte = __pte(__phys_to_pte_val(phys) | pgprot_val(pgprot_device(prot)));
++#endif
++	return set_pte_bit(pte, __pgprot(PTE_SPECIAL));
++}
++
+ #define __HAVE_PHYS_MEM_ACCESS_PROT
+ struct file;
+ extern pgprot_t phys_mem_access_prot(struct file *file, unsigned long pfn,
+diff --git a/kernel/resource.c b/kernel/resource.c
+index bb966699d..1726b2442 100644
+--- a/kernel/resource.c
++++ b/kernel/resource.c
+@@ -392,6 +392,7 @@ static int find_next_res(struct resource *parent, resource_size_t start,
+ 			.flags = p->flags,
+ 			.desc = p->desc,
+ 			.parent = p->parent,
++			.name = p->name,
+ 		};
+ 	}
+ 
+@@ -597,6 +598,38 @@ int __weak page_is_ram(unsigned long pfn)
+ }
+ EXPORT_SYMBOL_GPL(page_is_ram);
+ 
++static int pci_res_check(struct resource *res, void *arg)
++{
++	if (!res->name)
++		return 1;
++
++	return strncmp(res->name, "PCI", 3);
++}
++
++bool range_is_pci(phys_addr_t phys_addr, size_t size)
++{
++	u64 start, end;
++	int ret;
++
++	start = phys_addr;
++	end = phys_addr + size;
++
++	/* Check 32-bit MMIO */
++	ret = walk_iomem_res_desc(IORES_DESC_NONE, IORESOURCE_MEM,
++				  start, end, NULL, pci_res_check);
++	if (!ret)
++		return true;
++
++	/* Check 64-bit MMIO */
++	ret = walk_iomem_res_desc(IORES_DESC_NONE, IORESOURCE_MEM_64,
++				  start, end, NULL, pci_res_check);
++	if (!ret)
++		return true;
++
++	return false;
++}
++EXPORT_SYMBOL_GPL(range_is_pci);
++
+ static int __region_intersects(struct resource *parent, resource_size_t start,
+ 			       size_t size, unsigned long flags,
+ 			       unsigned long desc)
+-- 
+2.53.0
+

@@ -1,0 +1,7 @@
+Kernel patches under patches/ are licensed GPL-2.0, as the Linux kernel.
+The arm64 PCIe/GPU patches originate from Mario Balanica's series and
+retain their original authorship and licensing.
+
+Documentation (README.md, docs/) and scripts/ are licensed
+Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
