@@ -144,9 +144,11 @@ compositor faithfully renders SDR at a fixed brightness (200 nits by default
 in KWin); with HDR off, the display applies its own contrast and saturation
 processing, which reads as punchier.
 
-Two identical monitors side by side on this machine — one on HDMI with HDR
-enabled, one on this DP output without — make the difference obvious. Neither
-is broken. Turn HDR on for HDR content, off for the desktop:
+The cleanest way to see it is the same panel on both paths: this monitor is
+reachable over a direct HDMI cable with HDR enabled and over the USB-C DP
+adapter without it, so switching its input swaps between the two renderings
+of identical content. The SDR one reads as noticeably richer. Neither is
+broken. Turn HDR on for HDR content, off for the desktop:
 
 ```
 kscreen-doctor output.<NAME>.hdr.disable
